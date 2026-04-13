@@ -152,16 +152,16 @@ class Lexer(object):
     # returned. This makes it much easier than "longest match", and
     # I have not yet seen a grammar where this causes trouble.
     token_defs = [
-        (re.compile("\."),                    Token.FullStop),
-        (re.compile("\("),                    Token.OpenPar),
-        (re.compile("\)"),                    Token.ClosePar),
-        (re.compile("\["),                    Token.OpenSquare),
-        (re.compile("\]"),                    Token.CloseSquare),
+        (re.compile(r"\."),                    Token.FullStop),
+        (re.compile(r"\("),                    Token.OpenPar),
+        (re.compile(r"\)"),                    Token.ClosePar),
+        (re.compile(r"\["),                    Token.OpenSquare),
+        (re.compile(r"\]"),                    Token.CloseSquare),
         (re.compile(","),                     Token.Comma),
         (re.compile(":"),                     Token.Colon),
-        (re.compile("~\|"),                   Token.Nor),
-        (re.compile("~&"),                    Token.Nand),
-        (re.compile("\|"),                    Token.Or),
+        (re.compile(r"~\|"),                   Token.Nor),
+        (re.compile(r"~&"),                    Token.Nand),
+        (re.compile(r"\|"),                    Token.Or),
         (re.compile("&"),                     Token.And),
         (re.compile("=>"),                    Token.Implies),
         (re.compile("->"),                    Token.Implies),
@@ -172,12 +172,12 @@ class Lexer(object):
         (re.compile("!="),                    Token.NotEqualSign),
         (re.compile("~"),                     Token.Negation),
         (re.compile("!"),                     Token.Universal),
-        (re.compile("\?"),                    Token.Existential),
+        (re.compile(r"\?"),                    Token.Existential),
 	(re.compile("\s+"),                   Token.WhiteSpace),
         (re.compile("[0-9][0-9]*"),           Token.IdentLower),
         (re.compile("[a-z][_a-z0-9_A-Z]*"),   Token.IdentLower),
         (re.compile("[_A-Z][_a-z0-9_A-Z]*"),  Token.IdentUpper),
-        (re.compile("\$[_a-z0-9_A-Z]*"),      Token.DefFunctor),
+        (re.compile(r"\$[_a-z0-9_A-Z]*"),      Token.DefFunctor),
         (re.compile("#[^\n]*"),               Token.Comment),
         (re.compile("%[^\n]*"),               Token.Comment),
         (re.compile("'[^']*'"),               Token.SQString)
@@ -196,7 +196,7 @@ class Lexer(object):
 
     def getName(self):
         return self.name
-        
+
     def Push(self, token):
         """
         Return a token to the token stack. This allows basically
@@ -240,6 +240,7 @@ class Lexer(object):
         nothing.
         """
         if not self.TestTok(tokens):
+            print(self.source[max(self.pos-10,0): self.pos+10])
             raise UnexpectedTokenError(
                 repr(self.Look().literal)+
                 " not "+repr(tokens))

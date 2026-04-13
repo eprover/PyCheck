@@ -33,7 +33,7 @@ testcov: *.py
 tags: TAGS
 
 TAGS: *.py
-	etags *.py
+	etags-emacs *.py
 
 
 

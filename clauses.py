@@ -47,7 +47,7 @@ Email: schulz@eprover.org
 
 import unittest
 from lexer import Token,Lexer
-from derivations import Derivable,Derivation
+from derivations import Derivable,Derivation,parseDerivation
 from signature import Signature
 
 from terms import *
@@ -85,6 +85,10 @@ class Clause(Derivable):
                                   self.strDerivation())
         if self.evaluation:
             res = res+"/* %s */"%(repr(self.evaluation),)
+
+        if self.eqLen != None:
+            res = ("/* %10ld */"%(self.eqLen)) + res
+
         return res
 
     def __len__(self):
@@ -270,11 +274,30 @@ def parseClause(lexer):
         lexer.AcceptTok(Token.ClosePar)
     else:
         lits = parseLiteralList(lexer)
+
+    res = Clause(lits, type, name)
+
+    deriv = None
+    if lexer.TestTok(Token.Comma):
+        lexer.AcceptTok(Token.Comma)
+        deriv = parseDerivation(lexer)
+
+    if lexer.TestTok(Token.Comma):
+        lexer.AcceptTok(Token.Comma)
+        lexer.AcceptTok(Token.OpenSquare)
+        lexer.AcceptTok(Token.SQString)
+        lexer.AcceptTok(Token.CloseSquare)
+
     lexer.AcceptTok(Token.ClosePar)
     lexer.AcceptTok(Token.FullStop)
 
     res = Clause(lits, type, name)
-    res.setInputDeriv(lexer.getName(), name)
+
+    if deriv:
+        res.setDerivation(deriv)
+    else:
+        res.setInputDeriv(lexer.getName(), name)
+
     return res
 
 

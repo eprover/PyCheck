@@ -176,6 +176,38 @@ class FOFSpec(object):
             return True
         return False
 
+    def resolveQuasiReferences(self):
+        deriv_index = {}
+        for c in self.clauses:
+            deriv_index[c.name] = c
+        for f in self.formulas:
+            deriv_index[f.name] = f
+
+        for c in self.clauses:
+            c.derivation.resolveQuasiReferences(deriv_index)
+        for f in self.formulas:
+            f.derivation.resolveQuasiReferences(deriv_index)
+
+    def computeEqLen(self):
+        for c in self.clauses:
+            c.computeEqLen()
+        for f in self.formulas:
+            f.computeEqLen()
+
+    def proofEqLen(self):
+        for c in self.clauses:
+            if c.isEmpty():
+                return c.computeEqLen()
+        return 0
+
+    def proofRWSteps(self):
+        res = 0
+        for c in self.clauses:
+            res += c.computeRWSteps()
+        for f in self.formulas:
+            res += f.computeRWSteps()
+        return res
+
 
 # ------------------------------------------------------------------
 #                  Unit test section

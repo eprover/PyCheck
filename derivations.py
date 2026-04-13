@@ -36,6 +36,7 @@ Germany
 Email: schulz@eprover.org
 """
 
+from lexer import Token,Lexer
 import unittest
 
 
@@ -64,6 +65,10 @@ class Derivable(object):
         self.setName(name)
         self.derivation = derivation
         self.refCount = 0
+        self.eqLen = None # How many applications of original axioms
+                          # lead to this? Probably only useful in a
+                          # purely UEQ setting.
+        self.rwSteps = None
 
     def __repr__(self):
         return self.name
@@ -156,6 +161,21 @@ class Derivable(object):
         res.reverse()
         return res
 
+    def computeEqLen(self):
+        if self.derivation.isInputDeriv() and "conjecture" in self.type:
+            self.eqLen = 0
+        if self.eqLen == None:
+            self.eqLen = self.derivation.computeEqLen()
+        return self.eqLen
+
+    def computeRWSteps(self):
+        if self.derivation.isInputDeriv() and "conjecture" in self.type:
+            self.rwSteps = 0
+        if self.rwSteps == None:
+            self.rwSteps = self.derivation.computeRWSteps()
+        return self.rwSteps
+
+
 def enableDerivationOutput():
     Derivable.printDerivation = True
 
@@ -185,25 +205,34 @@ class Derivation(object):
         """
         Return a string for the derivation in TPTP-3 format.
         """
-        if self.operator.startswith("file("):
+        if self.isInputDeriv():
             return self.operator
         elif self.operator.startswith("theory("):
             return self.operator
         elif self.operator == "reference":
             assert(len(self.parents)==1)
             return self.parents[0].name
+        elif self.operator == "quasi_ref":
+            assert(len(self.parents)==1)
+            return self.parents[0]+"q"
         else:
             return "inference(%s,[%s],%s)"%\
                    (self.operator, self.status, repr(self.parents))
 
-
+    def isInputDeriv(self):
+        """
+        Return true if this derivation corresponds to an input
+        clause/formula, i.e. it is justified simply by pointing to its
+        origin.
+        """
+        return self.operator.startswith("file(")
 
     def getParents(self):
         """
         Return a list of all derived objects that are used in this
         derivation.
         """
-        if self.operator.startswith("file("):
+        if self.isInputDeriv():
             return []
         elif self.operator.startswith("theory("):
             return []
@@ -216,6 +245,91 @@ class Derivation(object):
                 res.extend(p.getParents())
             return res
 
+    def resolveQuasiReferences(self, index):
+        if self.operator == "quasi_ref":
+            self.operator = "reference"
+            parents = [index[p] for p in self.parents]
+            self.parents = parents
+        else:
+            # print(self.parents)
+            if self.parents:
+                for p in self.parents:
+                    p.resolveQuasiReferences(index)
+
+    def computeEqLen(self):
+        if self.isInputDeriv():
+            return 1
+        elif self.operator == "reference":
+            return self.parents[0].computeEqLen()
+        else:
+            # print(self.operator, len(self.parents))
+            res = 0
+            if self.parents:
+                for p in self.parents:
+                    res += p.computeEqLen()
+            return res
+
+    def computeRWSteps(self):
+        if self.isInputDeriv():
+            return 0
+        elif self.operator == "reference":
+            return 0
+        else:
+            res = 0
+            if(self.operator in ["rw", "sr"]):
+                res = 1
+            if self.parents:
+                for p in self.parents:
+                    res += p.computeRWSteps()
+            return res
+
+
+
+def parseRecDerivation(lexer):
+    if lexer.TestLit("inference"):
+        lexer.AcceptLit("inference")
+        lexer.AcceptTok(Token.OpenPar)
+        operator = lexer.LookLit()
+        lexer.AcceptTok(Token.IdentLower)
+        lexer.AcceptTok(Token.Comma)
+        lexer.AcceptTok(Token.OpenSquare)
+        lexer.AcceptLit("status")
+        lexer.AcceptTok(Token.OpenPar)
+        status = "status(%s)"%(lexer.LookLit(),)
+        lexer.AcceptTok(Token.IdentLower)
+        lexer.AcceptTok(Token.ClosePar)
+        lexer.AcceptTok(Token.CloseSquare)
+        lexer.AcceptTok(Token.Comma)
+        lexer.AcceptTok(Token.OpenSquare)
+        parents = []
+        if not lexer.TestTok(Token.CloseSquare):
+            parent = parseRecDerivation(lexer)
+            parents.append(parent)
+            while lexer.TestTok(Token.Comma):
+                lexer.AcceptTok(Token.Comma)
+                parent = parseRecDerivation(lexer)
+                parents.append(parent)
+        lexer.AcceptTok(Token.CloseSquare)
+        lexer.AcceptTok(Token.ClosePar)
+        return Derivation(operator, parents, status)
+    elif lexer.TestTok(Token.IdentLower):
+        name = lexer.LookLit()
+        lexer.AcceptTok(Token.IdentLower)
+        return Derivation("quasi_ref", [name])
+
+def parseDerivation(lexer):
+    if lexer.TestLit("file"):
+        lexer.AcceptLit("file")
+        lexer.AcceptTok(Token.OpenPar)
+        filename = lexer.LookLit()
+        lexer.AcceptTok(Token.SQString)
+        lexer.AcceptTok(Token.Comma)
+        name = lexer.LookLit()
+        lexer.AcceptTok([Token.IdentLower,Token.SQString])
+        lexer.AcceptTok(Token.ClosePar)
+        return Derivation("file(%s, %s)"%(filename,name))
+    else:
+        return parseRecDerivation(lexer)
 
 
 def flatDerivation(operator, parents, status="status(thm)"):

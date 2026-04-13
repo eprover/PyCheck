@@ -72,7 +72,7 @@ Email: schulz@eprover.org
 import unittest
 from collections import deque
 from lexer import Token,Lexer
-from derivations import Derivable,Derivation,flatDerivation,toggleDerivationOutput
+from derivations import Derivable,Derivation,flatDerivation,toggleDerivationOutput, parseDerivation
 from signature import Signature
 from terms import *
 import substitutions
@@ -486,11 +486,19 @@ def parseWFormula(lexer):
 
     form = parseFormula(lexer)
 
+    deriv = None
+    if lexer.TestTok(Token.Comma):
+        lexer.AcceptTok(Token.Comma)
+        deriv = parseDerivation(lexer)
+            
     lexer.AcceptTok(Token.ClosePar)
     lexer.AcceptTok(Token.FullStop)
 
     res = WFormula(form, type, name)
-    res.setInputDeriv(lexer.getName(), name)
+    if deriv:
+        res.setDerivation(deriv)
+    else:
+        res.setInputDeriv(lexer.getName(), name)       
 
     return res
 
