@@ -38,15 +38,15 @@ Email: schulz@eprover.org
 
 from lexer import Token,Lexer
 import unittest
-
+from checkutil import VerificationStatus
 
 class Derivable(object):
     """
     This class represents "derivable" objects. Derivable objects have
     a name and a justification. Names can be generated
-    automatically. They are not strictly required to be different for
-    different objects, but will usually be (this makes live easier for
-    users). Derivable objects will typically be logical formulas,
+    automatically. They are required to be different for different
+    objects in the same proof structure, but this is enforced at the
+    FOFSpec level. Derivable objects will typically be logical formulas,
     either full FOF formulas, or clauses.
     """
     derivedIdCounter = 0
@@ -55,7 +55,7 @@ class Derivable(object):
     """
     printDerivation = False
     """
-    Indicate if derivations shouldbe printed as part of Derivable
+    Indicate if derivations should be printed as part of Derivable
     objects. It's up to the concrete classes to support this.
     """
     def __init__(self, name=None, derivation = None):
@@ -69,6 +69,7 @@ class Derivable(object):
                           # lead to this? Probably only useful in a
                           # purely UEQ setting.
         self.rwSteps = None
+        self.number = None
 
     def __repr__(self):
         return self.name
@@ -82,6 +83,12 @@ class Derivable(object):
         else:
             self.name = "c%d"%(Derivable.derivedIdCounter,)
             Derivable.derivedIdCounter=Derivable.derivedIdCounter+1
+
+    def setNumber(self, number):
+        """
+        Set the serial number of the step in a linearized derivation.
+        """
+        self.number = number
 
     def setDerivation(self, derivation):
         """
@@ -136,10 +143,10 @@ class Derivable(object):
         of self. The root node has one "virtual" edge.
         """
         if self.refCount == 0:
+            self.incRefCount()
             parents = self.getParents()
             for p in parents:
                 p.annotateDerivationGraph()
-        self.incRefCount()
 
     def linearizeDerivation(self, res = None):
         """
@@ -175,6 +182,15 @@ class Derivable(object):
             self.rwSteps = self.derivation.computeRWSteps()
         return self.rwSteps
 
+    def checkForwardReferences(self):
+        """
+        Check if all references point (topologically)
+        backwards. Terminate with Verification failure if not.
+        """
+        for i in self.getParents():
+            if i.number > self.number:
+                VerificationStatus(f"VerifiedBad: Step {self.name} references topologically later {i.name}")
+
 
 def enableDerivationOutput():
     Derivable.printDerivation = True
@@ -184,6 +200,8 @@ def disableDerivationOutput():
 
 def toggleDerivationOutput():
      Derivable.printDerivation = not Derivable.printDerivation
+
+
 
 class Derivation(object):
     """
@@ -206,7 +224,7 @@ class Derivation(object):
         Return a string for the derivation in TPTP-3 format.
         """
         if self.isInputDeriv():
-            return self.operator
+            return f"file({self.parents[0]}, {self.parents[1]})"
         elif self.operator.startswith("theory("):
             return self.operator
         elif self.operator == "reference":
@@ -225,7 +243,15 @@ class Derivation(object):
         clause/formula, i.e. it is justified simply by pointing to its
         origin.
         """
-        return self.operator.startswith("file(")
+        return self.operator == "file"
+
+    def isSimpleQuotation(self):
+        return self.operator == "reference"
+
+    def getInputParts(self):
+        """
+        Return file and name of an input step.
+        """
 
     def getParents(self):
         """
@@ -245,11 +271,44 @@ class Derivation(object):
                 res.extend(p.getParents())
             return res
 
+
+    def getRecDerivationStatuses(self):
+        """
+        Return a set of all statuses used in the
+        derivation.
+        """
+        if self.operator.startswith("theory("):
+            return set()
+        elif self.operator == "reference":
+            return set()
+        else:
+            res = set([self.status])
+            for p in self.parents:
+                res = res|p.getRecDerivationStatuses()
+            return res
+
+    def getDerivationStatuses(self):
+        """
+        Return a set of all statuses used in the
+        derivation.
+        """
+        if self.isInputDeriv():
+            return set()
+        if self.isSimpleQuotation():
+            return set(["status(thm)"])
+        else:
+            return self.getRecDerivationStatuses()
+
     def resolveQuasiReferences(self, index):
         if self.operator == "quasi_ref":
             self.operator = "reference"
+            for p in self.parents:
+                if not p in index:
+                    VerificationStatus(f"VerifiedBad: Identifier '{p}' cannot be resolved")
             parents = [index[p] for p in self.parents]
             self.parents = parents
+        elif self.isInputDeriv():
+            pass
         else:
             # print(self.parents)
             if self.parents:
@@ -327,7 +386,7 @@ def parseDerivation(lexer):
         name = lexer.LookLit()
         lexer.AcceptTok([Token.IdentLower,Token.SQString])
         lexer.AcceptTok(Token.ClosePar)
-        return Derivation("file(%s, %s)"%(filename,name))
+        return Derivation("file", (filename,name))
     else:
         return parseRecDerivation(lexer)
 
@@ -378,7 +437,7 @@ class TestDerivations(unittest.TestCase):
         o7 = Derivable()
         o1.setDerivation(Derivation("theory(equality)"))
         print(repr(o1.derivation))
-        o2.setDerivation(Derivation("file('fake', fake')"))
+        o2.setDerivation(Derivation("file", ('\'fake\'', 'fake')))
         o3.setDerivation(flatDerivation("factor", [o1]))
         o4.setDerivation(flatDerivation("factor", [o3]))
         o5.setDerivation(flatDerivation("resolution", [o1,o2]))

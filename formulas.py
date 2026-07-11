@@ -78,7 +78,7 @@ from terms import *
 import substitutions
 from literals import Literal, parseLiteral, parseLiteralList,\
      literalList2String, litInLitList, oppositeInLitList
-
+from clauses import Clause
 
 class Formula(object):
     """
@@ -224,15 +224,12 @@ class Formula(object):
             return self.child1.disj2List()+self.child2.disj2List()
         return [self]
 
-
-
     def hasSubform1(self):
         """
         Return True if self has a proper subformula as the first
         argument. This is false for quantified formulas and literals.
         """
         return self.isUnary() or self.isBinary()
-
 
     def hasSubform2(self):
         """
@@ -241,7 +238,6 @@ class Formula(object):
         formulas.
         """
         return self.isQuantified() or self.isBinary()
-
 
     def isEqual(self, other):
         """
@@ -359,7 +355,15 @@ class Formula(object):
             res.discard(self.child1)
         return res
 
-
+    def universalClosure(self):
+        """
+        Return the universal closure of self.
+        """
+        vars = self.collectFreeVars()
+        res = self
+        for var in vars:
+            res = Formula("!", var, res)
+        return res
 
 
 def parseQuantified(lexer, quantor):
@@ -490,7 +494,7 @@ def parseWFormula(lexer):
     if lexer.TestTok(Token.Comma):
         lexer.AcceptTok(Token.Comma)
         deriv = parseDerivation(lexer)
-            
+
     lexer.AcceptTok(Token.ClosePar)
     lexer.AcceptTok(Token.FullStop)
 
@@ -498,7 +502,7 @@ def parseWFormula(lexer):
     if deriv:
         res.setDerivation(deriv)
     else:
-        res.setInputDeriv(lexer.getName(), name)       
+        res.setInputDeriv(lexer.getName(), name)
 
     return res
 
@@ -518,6 +522,19 @@ def negateConjecture(wform):
     else:
         return wform
 
+
+def clauseToFormula(clause):
+    """
+    Convert a clause to an equivalent universally closed formula.
+    """
+    if clause.isEmpty():
+        return Literal(["$false"])
+    else:
+        res = clause.litlist[0]
+        for lit in clause.litlist[1:]:
+            res = Formula("|", res, lit)
+        res.universalClosure()
+        return res
 
 
 # ------------------------------------------------------------------

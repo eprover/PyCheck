@@ -45,6 +45,7 @@ from clausesets import ClauseSet
 from formulas import WFormula, parseWFormula, negateConjecture
 from formulacnf import wFormulaClausify
 from eqaxioms import generateEquivAxioms, generateCompatAxioms
+from checkutil import VerificationStatus
 
 def tptpLexer(source, refdir):
     """
@@ -91,6 +92,8 @@ class FOFSpec(object):
         self.formulas = []
         self.isFof    = False
         self.hasConj  = False
+        self.deriv_index = {}
+        self.ordered_proof = None
 
     def __repr__(self):
         """
@@ -100,6 +103,15 @@ class FOFSpec(object):
                        [repr(f) for f in self.formulas])
         return res
 
+    def indexDerivable(self, derivable):
+        """
+        Try to add a clause or formula to the name->derivable index.
+        Terminate with an error if the name is already in use.
+        """
+        if derivable.name in self.deriv_index:
+            VerificationStatus(f"VerifiedBad: Identifier '{derivable.name}' is not unique")
+        self.deriv_index[derivable.name] = derivable
+
     def addClause(self,clause):
         """
         Add a clause to the specification.
@@ -107,6 +119,7 @@ class FOFSpec(object):
         if clause.type == "negated_conjecture":
             self.hasConj = True
         self.clauses.append(clause)
+        self.indexDerivable(clause)
 
     def addFormula(self,formula):
         """
@@ -116,6 +129,19 @@ class FOFSpec(object):
             self.hasConj = True
         self.isFof = True
         self.formulas.append(formula)
+        self.indexDerivable(formula)
+
+    def findEmpty(self):
+        """
+        Return the empty clause or formula (if any).
+        """
+        for c in self.clauses:
+            if c.isEmpty():
+                return c
+        for f in self.formulas:
+            if f.formula.isPropConst(False):
+                return f
+        return None
 
     def parse(self, source, refdir=None):
         """
@@ -177,16 +203,38 @@ class FOFSpec(object):
         return False
 
     def resolveQuasiReferences(self):
-        deriv_index = {}
+        """
+        Replace quasi-references (names) with proper references (to
+        other clauses or formulas).
+        """
         for c in self.clauses:
-            deriv_index[c.name] = c
+            c.derivation.resolveQuasiReferences(self.deriv_index)
         for f in self.formulas:
-            deriv_index[f.name] = f
+            f.derivation.resolveQuasiReferences(self.deriv_index)
 
-        for c in self.clauses:
-            c.derivation.resolveQuasiReferences(deriv_index)
-        for f in self.formulas:
-            f.derivation.resolveQuasiReferences(deriv_index)
+    def checkStructure(self):
+        """
+        Perform structural tests:
+        - check if there is an explicit $false clause or formula
+        - linearize the proof
+        - check for forward-references
+        If successful, the linearized proof is returned and stored
+        in self.ordered_proof.
+        """
+        deriv_root = self.findEmpty()
+        if not deriv_root:
+            VerificationStatus(f"VerifiedBad: No explicit witness of contradiction")
+        res = deriv_root.orderedDerivation()
+        count = 0
+        for step in res:
+            step.setNumber(count)
+            count+=1
+        for step in res:
+            step.checkForwardReferences()
+        self.ordered_proof = res
+        return res
+
+
 
     def computeEqLen(self):
         for c in self.clauses:

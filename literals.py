@@ -3,7 +3,7 @@
 #
 # Module literal.py
 
-"""
+r"""
 A simple implementation of first-order atoms and literals.
 
 We assume a set of function symbols F (with associated arities) and

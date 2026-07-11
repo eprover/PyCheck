@@ -3,17 +3,17 @@
 #
 # Module signature.py
 
-"""
+r"""
 First-order signatures describe which names (for functions, including
 constants, and predicates) are available in a given first-order
 language. Very often, signatures are given implicitly. In other words,
 the symbols used in terms and formulas implictly make up the
 signature. For implementations of standard untyped predicate logic, we
 can always extract the necessary information directly from the
-formulae. 
+formulae.
 
 However, for certain operations it is much easier to have an explicit
-data object providing signature information. 
+data object providing signature information.
 
 A signature is a triple (F,P,ar), with the following properties:
 
@@ -40,7 +40,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program ; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston,
-MA  02111-1307 USA 
+MA  02111-1307 USA
 
 The original copyright holder can be contacted as
 
@@ -124,7 +124,7 @@ class TestSignature(unittest.TestCase):
     """
     Test basic functionality of the signature data type.
     """
-    
+
     def testSig(self):
         """
         Test signature object.
@@ -134,7 +134,7 @@ class TestSignature(unittest.TestCase):
         sig.addFun("mult", 2)
         sig.addFun("a", 0)
         sig.addPred("weird", 4)
-        
+
 
         print(sig)
         self.assertTrue(sig.isPred("weird"))
