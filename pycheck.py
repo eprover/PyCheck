@@ -50,28 +50,54 @@ import asyncio
 import re
 from resource import RLIMIT_STACK, setrlimit, getrlimit
 import getopt
-from version import version
+from version import *
 from lexer import Token,Lexer
 from derivations import *
 from clauses import Clause
 from formulas import Formula, WFormula
+from formulacnf import formulaVarNormalize
 from clausesets import ClauseSet
 from fofspec import FOFSpec
-
+from checkutil import VerificationStatus
 
 def processOptions(opts):
     """
     Process the options given
     """
-
+    global Verbose
     for opt, optarg in opts:
         if opt == "-h" or opt == "--help":
             print("pyres-fof.py "+version)
             print(__doc__)
             sys.exit()
+        elif opt == "-v" or opt == "--Verbose":
+            Verbose = True
 
 res = []
 res_match_re = re.compile("% SZS status (.*)")
+
+
+class FileCache:
+    """
+    Provide access to a set of FOF problems potentially to be read
+    from the file names provided.
+    """
+    def __init__(self, refdir = None):
+        self.cache = {}
+        self.refdir = refdir
+
+    def requestSpec(self, filename):
+        if not filename in self.cache:
+            spec = FOFSpec()
+            spec.parse(filename, self.refdir)
+            self.cache[filename] = spec
+        return self.cache[filename]
+
+    def getDerivable(self, filename, name):
+        spec = self.requestSpec(filename)
+        return spec.getDerivable(name)
+
+
 
 async def run_prover(step, formulas):
     job = await asyncio.create_subprocess_shell(
@@ -99,6 +125,8 @@ async def run_prover(step, formulas):
         VerificationStatus(f"Unknown: Unexpected resuls {res} for {step.name}")
 
 
+
+
 def checkConjectureStructConstraints(step, problem):
     """
     Checks that only plain references of type conjecture and
@@ -113,7 +141,30 @@ def checkConjectureStructConstraints(step, problem):
                 continue
             VerificationStatus(f"VerifiedBad: Conjecture {step.name} is used weirdly by {f.name}")
 
-async def checkProofStep(step, problem):
+
+def checkInputStep(step, problem, filecache):
+    print(f"% Verifying input step {step.name}")
+    filename, name = step.derivation.parents
+    premise = filecache.getDerivable(filename, name)
+    # print(f"Input: {premise}")
+    premf = premise.formula
+    if isinstance(step, Clause):
+        stepf = clauseToFormula(step.clause)
+    else:
+        stepf = step.formula
+    if isinstance(premise, Clause):
+        premf = clauseToFormula(premise.clause)
+    else:
+        stepf = step.formula
+    stepf = formulaVarNormalize(stepf)
+    premf = formulaVarNormalize(premf)
+    # print(f"{stepf} == {premf}")
+    if not stepf.isEqual(premf):
+        VerificationStatus(f"VerifiedBad: Step {step.name} is not alpha-equal to {premise.name}")
+    print(f"% Verified step {step.name}")
+
+
+async def checkProofStep(step, problem, filecache):
     print(f"% Performing local checks on {step.name}")
 
     if step.type not in ["axiom",
@@ -126,7 +177,7 @@ async def checkProofStep(step, problem):
         checkConjectureStructConstraints(step, problem)
 
     if step.derivation.operator == "file":
-        print(f"Need to check input step {step}")
+        checkInputStep(step, problem, filecache)
     else:
         statuses = step.derivation.getDerivationStatuses()
         if len(statuses) > 1:
@@ -134,7 +185,6 @@ async def checkProofStep(step, problem):
         premises = step.getParents()
         if isinstance(step,Clause):
             concl = clauseToFormula(step)
-            concl = concl.universalClosure()
         else:
             concl = step.formula
         # print("Premises:\n", premises)
@@ -157,8 +207,9 @@ async def checkProofStep(step, problem):
 
 
 async def checkProofSteps(problem):
+    filecache = FileCache(problem.refdir)
     for step in problem.ordered_proof:
-        await checkProofStep(step, problem)
+        await checkProofStep(step, problem, filecache)
 
 
 
@@ -182,8 +233,8 @@ if __name__ == '__main__':
 
     try:
         opts, args = getopt.gnu_getopt(sys.argv[1:],
-                                       "h",
-                                       ["help"])
+                                       "hv",
+                                       ["help", "Verbose"])
     except getopt.GetoptError as err:
         print(sys.argv[0],":", err)
         sys.exit(1)

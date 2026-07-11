@@ -33,3 +33,4 @@ Email: schulz@eprover.org
 """
 
 version = "1.5"
+Verbose = False

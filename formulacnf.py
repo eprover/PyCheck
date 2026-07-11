@@ -513,6 +513,49 @@ def formulaVarRename(f, subst = None):
 
     return f
 
+def formulaNormVars(f):
+    """
+    Return a substitution binging all variables in f to normal
+    variables (X0, X1, ...).
+    """
+    vars = f.collectVarsOrdered()
+    # print(f"{f}: {vars}")
+    bindings = [(var, f"X{count}") for (var, count) in zip(vars, range(len(vars)))]
+    return Substitution(bindings)
+
+def formulaVarNormalize(f, subst = None):
+    """
+    Rename the variables in f to X0...Xn.
+    """
+    if not subst:
+        # First call. Make variables in f distinct (but not normal)
+        # print(f"f original: {f}")
+        f = formulaVarRename(f)
+        # print(f"f renamed: {f}")
+        subst = formulaNormVars(f)
+
+    if f.isLiteral():
+        # Create copy with the new variables recorded in subst
+        child = f.child1.instantiate(subst)
+        f = Formula("", child)
+    else:
+        # This is a composite formula. Rename it...
+        arg1 = None
+        arg2 = None
+        if f.isQuantified():
+            arg1 = subst.value(f.child1)
+            arg2 = formulaVarNormalize(f.child2, subst)
+        else:
+            # Apply renaming to all subformulas
+            if f.hasSubform1():
+                arg1 = formulaVarNormalize(f.child1, subst)
+            if f.hasSubform2():
+                arg2 = formulaVarNormalize(f.child2, subst)
+        f = Formula(f.op, arg1, arg2)
+
+    return f
+
+
 
 def formulaRekSkolemize(f, variables, subst):
     """
@@ -667,7 +710,7 @@ def wFormulaCNF(wf):
     ftype = "plain"
     if(wf.type in ["conjecture", "negated_conjecture"]):
         ftype = wf.type
-    
+
     f, m0 = formulaOpSimplify(wf.formula)
     f, m1 = formulaSimplify(f)
     if m0 or m1:
@@ -749,6 +792,7 @@ class TestCNF(unittest.TestCase):
         ![X]:(a(X) <= ~a=b)
         ((((![X]:a(X))|b(X))|(?[X]:(?[Y]:p(X,f(Y)))))~&q(g(a),X))
         ![X]:(a(X)|$true)
+        ![Z]:(a(Z)|b(Z)|?[Z,Y]:(p(Z,f(Y))<~>q(g(a),Z)))
         """
         lex = Lexer(self.formulas)
         self.f1 = parseFormula(lex)
@@ -756,6 +800,7 @@ class TestCNF(unittest.TestCase):
         self.f3 = parseFormula(lex)
         self.f4 = parseFormula(lex)
         self.f5 = parseFormula(lex)
+        self.f6 = parseFormula(lex)
         self.simple_ops = set(["", "!", "?", "~", "&","|", "=>", "<=>"])
         self.nnf_ops = set(["", "!", "?", "&","|"])
 
@@ -918,7 +963,6 @@ fof(testscosko, axiom, (![X]:?[Y]:((p(X)&q(X))|q(X,Y))|a)).
             ops = f.collectOps()
             self.assertTrue(ops <= self.nnf_ops)
 
-
     def testNNF(self):
         """
         Test NNF transformation
@@ -955,6 +999,8 @@ fof(testscosko, axiom, (![X]:?[Y]:((p(X)&q(X))|q(X,Y))|a)).
             f,m = formulaSimplify(f)
             f,m = formulaNNF(f,1)
             self.checkNNFResult(f)
+
+
 
     def testMiniScope(self):
         """
@@ -998,6 +1044,15 @@ fof(testscosko, axiom, (![X]:?[Y]:((p(X)&q(X))|q(X,Y))|a)).
         self.assertEqual(len(v1), 3)
         v2 = f1.collectFreeVars()
         self.assertEqual(v2, set())
+
+    def testVarNorm(self):
+        """
+        Test variable normalization
+        """
+        f2 = formulaVarNormalize(self.f2)
+        f6 = formulaVarNormalize(self.f6)
+        self.assertTrue(f2.isEqual(f6))
+
 
     def testSkolemSymbols(self):
         """
@@ -1103,8 +1158,8 @@ fof(testscosko, axiom, (![X]:?[Y]:((p(X)&q(X))|q(X,Y))|a)).
         lex = Lexer(self.testformulas)
 
         while not lex.TestTok(Token.EOFToken):
-            wf = parseWFormula(lex)
-            wf = wFormulaCNF(wf)
+            f = parseWFormula(lex)
+            wf = wFormulaCNF(f)
             enableDerivationOutput()
             self.assertTrue(wf.formula.isCNF())
             deriv = wf.orderedDerivation()

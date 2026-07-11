@@ -34,10 +34,12 @@ Email: schulz@eprover.org
 
 import sys
 import unittest
+# from fofspec import FOFSpec
 
 def VerificationStatus(string):
     print("% SZS status:", string)
     sys.exit(1)
+
 
 
 class TestUtils(unittest.TestCase):

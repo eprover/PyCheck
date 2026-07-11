@@ -46,6 +46,7 @@ from formulas import WFormula, parseWFormula, negateConjecture
 from formulacnf import wFormulaClausify
 from eqaxioms import generateEquivAxioms, generateCompatAxioms
 from checkutil import VerificationStatus
+from version import Verbose
 
 def tptpLexer(source, refdir):
     """
@@ -90,6 +91,7 @@ class FOFSpec(object):
         """
         self.clauses  = []
         self.formulas = []
+        self.refdir = None
         self.isFof    = False
         self.hasConj  = False
         self.deriv_index = {}
@@ -111,6 +113,15 @@ class FOFSpec(object):
         if derivable.name in self.deriv_index:
             VerificationStatus(f"VerifiedBad: Identifier '{derivable.name}' is not unique")
         self.deriv_index[derivable.name] = derivable
+
+    def getDerivable(self, name):
+        """
+        Return clause or formula with name, if it exists, None
+        otherwise.
+        """
+        if name in self.deriv_index:
+            return self.deriv_index[name]
+        return None
 
     def addClause(self,clause):
         """
@@ -169,6 +180,7 @@ class FOFSpec(object):
                 source.AcceptTok(Token.ClosePar)
                 source.AcceptTok(Token.FullStop)
                 self.parse(name, refdir)
+        self.refdir = refdir
 
     def clausify(self):
         """
@@ -224,6 +236,8 @@ class FOFSpec(object):
         deriv_root = self.findEmpty()
         if not deriv_root:
             VerificationStatus(f"VerifiedBad: No explicit witness of contradiction")
+        if Verbose:
+            print("% Proof has explicit witness for contradiction")
         res = deriv_root.orderedDerivation()
         count = 0
         for step in res:
@@ -231,6 +245,8 @@ class FOFSpec(object):
             count+=1
         for step in res:
             step.checkForwardReferences()
+        if Verbose:
+            print("% Proof structure is sound (no cyclical references)")
         self.ordered_proof = res
         return res
 

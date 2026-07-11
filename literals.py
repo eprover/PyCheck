@@ -255,6 +255,14 @@ class Literal(object):
         res = termCollectVars(self.atom, res)
         return res
 
+    def collectVarsOrdered(self, res=None):
+        """
+        Insert all new variables in self into the ordered list res and
+        return it.
+        """
+        res = termCollectVarsOrdered(self.atom, res)
+        return res
+
     def collectFuns(self, res=None):
         """
         Insert all function symbols in self into the set res and

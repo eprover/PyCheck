@@ -80,6 +80,7 @@ from literals import Literal, parseLiteral, parseLiteralList,\
      literalList2String, litInLitList, oppositeInLitList
 from clauses import Clause
 
+
 class Formula(object):
     """
     A class representing a naked first-order formula
@@ -241,7 +242,9 @@ class Formula(object):
 
     def isEqual(self, other):
         """
-        Return True if self is structurally equal to other.
+        Return True if self is structurally equal to other. We don't
+        use __equal__(), because we may need object identity and
+        dicts/sets later.
         """
         if self.op!=other.op:
             return False
@@ -332,6 +335,23 @@ class Formula(object):
             assert self.isQuantified()
             res = termCollectVars(self.child1)
             res |= self.child2.collectVars()
+        return res
+
+    def collectVarsOrdered(self, res=None):
+        """
+        Return the list of variables by order of first appearance.
+        """
+        if self.isLiteral():
+            res=self.child1.collectVarsOrdered(res)
+        elif self.isUnary():
+            res=self.child1.collectVarsOrdered(res)
+        elif self.isBinary():
+            res=self.child1.collectVarsOrdered(res)
+            self.child2.collectVarsOrdered(res)
+        else:
+            assert self.isQuantified()
+            res = termCollectVarsOrdered(self.child1,res)
+            self.child2.collectVarsOrdered(res)
         return res
 
 

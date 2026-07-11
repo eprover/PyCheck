@@ -221,6 +221,21 @@ def termCollectVars(t, res=None):
             termCollectVars(s, res)
     return res
 
+def termCollectVarsOrdered(t, res=None):
+    """
+    Insert all variables in t into the list res (only once) and return
+    it. If res is not given, create it first.
+    """
+    if res == None:
+        res = list()
+    if termIsVar(t):
+        if not t in res:
+            res.append(t)
+    else:
+        for s in termArgs(t):
+            termCollectVarsOrdered(s, res)
+    return res
+
 
 def termCollectFuns(t, res=None):
     """

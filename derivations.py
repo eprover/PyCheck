@@ -100,7 +100,7 @@ class Derivable(object):
         """
         Special case: It's an input object.
         """
-        self.derivation = Derivation("file('%s', %s)"%(filename,name))
+        self.derivation = Derivation("file", (filename,name))
 
     def getParents(self):
         """
@@ -224,7 +224,7 @@ class Derivation(object):
         Return a string for the derivation in TPTP-3 format.
         """
         if self.isInputDeriv():
-            return f"file({self.parents[0]}, {self.parents[1]})"
+            return f"file('{self.parents[0]}', {self.parents[1]})"
         elif self.operator.startswith("theory("):
             return self.operator
         elif self.operator == "reference":
@@ -265,6 +265,9 @@ class Derivation(object):
         elif self.operator == "reference":
             assert(len(self.parents)==1)
             return self.parents
+        elif self.operator == "quasi_ref":
+            return []
+            return []
         else:
             res = []
             for p in self.parents:
@@ -380,7 +383,7 @@ def parseDerivation(lexer):
     if lexer.TestLit("file"):
         lexer.AcceptLit("file")
         lexer.AcceptTok(Token.OpenPar)
-        filename = lexer.LookLit()
+        filename = lexer.LookLit().strip("'")
         lexer.AcceptTok(Token.SQString)
         lexer.AcceptTok(Token.Comma)
         name = lexer.LookLit()
