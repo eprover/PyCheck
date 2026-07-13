@@ -17,6 +17,14 @@ Options:
 --help
   Print this help.
 
+ -v
+--V
+  Be a bit more verbose
+
+ -e<path>
+--eprover=<path>
+  Provide an explixit path to eprover.
+
 
 Copyright 2026 Stephan Schulz, schulz@eprover.org
 
@@ -61,18 +69,22 @@ from clausesets import ClauseSet
 from fofspec import FOFSpec
 from checkutil import VerificationStatus
 
+eprover = "eprover"
+
 def processOptions(opts):
     """
     Process the options given
     """
-    global Verbose
+    global Verbose, eprover
     for opt, optarg in opts:
         if opt == "-h" or opt == "--help":
-            print("pyres-fof.py "+version)
+            print("pycheck.py "+version)
             print(__doc__)
             sys.exit()
         elif opt == "-v" or opt == "--Verbose":
             Verbose = True
+        elif opt == "-e" or opt == "--eprover":
+            eprover = optarg
 
 res = []
 res_match_re = re.compile("% SZS status (.*)")
@@ -98,11 +110,9 @@ class FileCache:
         spec = self.requestSpec(filename)
         return spec.getDerivable(name)
 
-
-
 async def run_prover(step, formulas):
     job = await asyncio.create_subprocess_shell(
-        "eprover --auto-schedule=8 -s --cpu-limit=5 -",
+        eprover+" --auto-schedule=8 -s --cpu-limit=5 -",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -288,8 +298,8 @@ if __name__ == '__main__':
 
     try:
         opts, args = getopt.gnu_getopt(sys.argv[1:],
-                                       "hv",
-                                       ["help", "Verbose"])
+                                       "hve:",
+                                       ["help", "Verbose", "eprover="])
     except getopt.GetoptError as err:
         print(sys.argv[0],":", err)
         sys.exit(1)

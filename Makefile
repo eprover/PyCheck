@@ -1,6 +1,6 @@
 #------------------------------------------------------------------------
 #
-# File  : Makefile for FOD-PI example prover.
+# File  : Makefile for PyCheck
 #
 # Author: Stephan Schulz
 #
@@ -11,7 +11,7 @@
 #
 #------------------------------------------------------------------------
 
-STAREXECPATH=$(HOME)/StarExec
+STAREXECPATH=$(HOME)/StarExecPyBuild
 VERSION=
 
 
@@ -36,15 +36,21 @@ TAGS: *.py
 	etags-emacs *.py
 
 
-
 distrib: clean
-	cd ..; tar czf PyRes.tgz PyRes
+	cd ..; tar czf PyCheck.tgz PyCheck
 
-starexec: clean
+
+starexec-src:
 	echo $(STAREXECPATH)
 	rm -rf $(STAREXECPATH)
-	mkdir -p $(STAREXECPATH)/bin
+	mkdir $(STAREXECPATH)
 	find . -name ".#*"  -exec rm {} \;
-	cp *.py starexec_run_PyRes_default $(STAREXECPATH)/bin
-	cp README $(STAREXECPATH)
-	cd $(STAREXECPATH); zip -r PyRes$(VERSION).zip bin
+	make distrib
+	cp ../PyCheck.tgz $(STAREXECPATH)
+	cd ~/tmp/E; git pull; make distrib;cp ../E.tgz $(STAREXECPATH)
+
+	mkdir $(STAREXECPATH)/bin
+	cp starexec_run* $(STAREXECPATH)/bin
+	cp starexec_build $(STAREXECPATH)
+	$(eval VERSION=`grep "version =" /Users/schulz/SOURCES/Projects/PyCheck/version.py | cut -d' ' -f3  |cut -d'"' -f2`)
+	cd $(STAREXECPATH); zip -r PyCheck-$(VERSION)_src.zip bin E.tgz PyCheck.tgz starexec_build

@@ -1,0 +1,10 @@
+#!/bin/tcsh
+
+tar xzvf E.tgz
+cd E
+./configure --prefix=".."
+make
+make install
+
+tar xzvf PyCheck.tgz
+cp PyCheck/*.py PyCheck/starexec_run_PyCheck ../bin

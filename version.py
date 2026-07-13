@@ -32,5 +32,5 @@ Germany
 Email: schulz@eprover.org
 """
 
-version = "1.5"
+version = "0.1"
 Verbose = False
