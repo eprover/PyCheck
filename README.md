@@ -43,7 +43,8 @@ the (older style) Skolemization steps output by E (which will be
 updated soon, of course).
 
 
-======== Information for ProoVer ==========
+Information for ProoVer
+=======================
 
 The system will be delivered as a StarExec source package, including E,
 with a build script that should put everything in the right place.
