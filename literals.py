@@ -109,7 +109,6 @@ def atom2String(atom):
     else:
         return term2String(atom)
 
-
 def atomIsConstTrue(atom):
     """
     Return True if the atom is $true.

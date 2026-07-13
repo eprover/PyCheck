@@ -52,9 +52,10 @@ from resource import RLIMIT_STACK, setrlimit, getrlimit
 import getopt
 from version import *
 from lexer import Token,Lexer
+from signature import Signature
 from derivations import *
 from clauses import Clause
-from formulas import Formula, WFormula
+from formulas import Formula, WFormula, clauseToFormula
 from formulacnf import formulaVarNormalize
 from clausesets import ClauseSet
 from fofspec import FOFSpec
@@ -101,11 +102,12 @@ class FileCache:
 
 async def run_prover(step, formulas):
     job = await asyncio.create_subprocess_shell(
-        "eprover --auto-schedule=8 --cpu-limit=5 -",
+        "eprover --auto-schedule=8 -s --cpu-limit=5 -",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
+    # print(formulas)
     prob =  "\n".join([repr(f) for f in formulas])+"\n"
     # print("Problem:\n", prob)
 
@@ -113,18 +115,17 @@ async def run_prover(step, formulas):
     res_out, res_err = await job.communicate(prob)
     res_out = res_out.decode('utf-8')
     res_err = res_err.decode('utf-8')
+    # print(res_out, res_err)
     mo = res_match_re.search(res_out)
     res = mo.groups()[0]
     if res == "ResourceOut":
-        VerificationStatus(f"Unknown: Verifying {step.name} hit resource limit")
+        VerificationStatus(f"Unknown: Verifying '{step.name}' hit resource limit")
     elif res in ["Satisfiable", "CounterSatisfiable"]:
-        VerificationStatus(f"VerifiedBad: {step.name} is unsound")
+        VerificationStatus(f"VerifiedBad: '{step.name}' is unsound")
     elif res in ["Theorem", "ContradictoryAxioms"]:
-        print(f"% Verified step {step.name}")
+        print(f"% Verified step '{step.name}'")
     else:
-        VerificationStatus(f"Unknown: Unexpected resuls {res} for {step.name}")
-
-
+        VerificationStatus(f"Unknown: Unexpected resuls {res} for '{step.name}'")
 
 
 def checkConjectureStructConstraints(step, problem):
@@ -139,40 +140,80 @@ def checkConjectureStructConstraints(step, problem):
                 continue
             if f.type == "negated_conjecture" and f.derivation.status=="status(cth)":
                 continue
-            VerificationStatus(f"VerifiedBad: Conjecture {step.name} is used weirdly by {f.name}")
+            VerificationStatus(f"VerifiedBad: Conjecture '{step.name}' is"
+                               +f" used weirdly by {f.name}")
 
 
 def checkInputStep(step, problem, filecache):
-    print(f"% Verifying input step {step.name}")
+    print(f"% Verifying input step '{step.name}'")
     filename, name = step.derivation.parents
     premise = filecache.getDerivable(filename, name)
+    if premise == None:
+        VerificationStatus(f"VerifiedBad: Step '{step.name}' is not in the input file")
     # print(f"Input: {premise}")
-    premf = premise.formula
     if isinstance(step, Clause):
-        stepf = clauseToFormula(step.clause)
+        stepf = clauseToFormula(step)
     else:
         stepf = step.formula
     if isinstance(premise, Clause):
-        premf = clauseToFormula(premise.clause)
+        premf = clauseToFormula(premise)
     else:
-        stepf = step.formula
+        premf = premise.formula
     stepf = formulaVarNormalize(stepf)
     premf = formulaVarNormalize(premf)
     # print(f"{stepf} == {premf}")
     if not stepf.isEqual(premf):
-        VerificationStatus(f"VerifiedBad: Step {step.name} is not alpha-equal to {premise.name}")
-    print(f"% Verified step {step.name}")
+        VerificationStatus(f"VerifiedBad: Step '{step.name}' is not alpha-equal to {premise.name}")
+    print(f"% Verified step '{step.name}'")
+
+
+def checkSkolemizationStep(step, problem):
+    print(f"% Verifying Skolemization step '{step.name}'")
+    skolem,var,skolemterm,varlist = step.derivation.skolemdata
+    # check that Skolem symbol is new
+    ancestors = step.getAncestors()
+    if problem.sig.isFun(skolem):
+        VerificationStatus(f"VerifiedBad: Skolem symbol '{skolem}' is"
+                           +f" not new in '{step.name}'")
+    problem.sig.addFun(skolem, len(termArgs(skolemterm)))
+    parents = step.getParents()
+    if len(parents)!=1:
+        VerificationStatus(f"VerifiedBad: Skolemization step "
+                           +f"'{step.name}' has more than one parent")
+    parent = parents[0]
+    pform = parent.formula
+    scope = pform.findQuantifierScope("?", var)
+    newvars = []
+    for (q,v) in scope:
+        if q!="!":
+            VerificationStatus(f"VerifiedBad: Skolemization step "
+                               +f"'{step.name}' does not Skolemize"
+                               +"outermost existential variable")
+        newvars.append(v)
+    if set(varlist)!=set(newvars):
+        VerificationStatus(f"VerifiedBad: Skolemization step "
+                           +f"'{step.name}' does not use exactly the "
+                           "variables in scope")
+
+    skform = pform.applySkolem(var, skolemterm)
+    # print("Before:", pform, "Skolemized:", skform, "Step: ", step.formula)
+    if not step.formula.isEqual(skform):
+        VerificationStatus(f"VerifiedBad: Skolemization of '{step.name}'"
+                           +f" does not correspond to '{skform}'")
+    print(f"% Verified Skolemization step '{step.name}'")
+
+
 
 
 async def checkProofStep(step, problem, filecache):
-    print(f"% Performing local checks on {step.name}")
+    print(f"% Performing local checks on '{step.name}'")
 
     if step.type not in ["axiom",
                          "conjecture",
                          "negated_conjecture",
                          "plain",
                          "definition"]:
-        VerificationStatus(f"VerifiedBad: Step {step.name} has unknown type {step.type}")
+        VerificationStatus(f"VerifiedBad: Step '{step.name}' has unknown role {step.type}")
     if step.type == "conjecture":
         checkConjectureStructConstraints(step, problem)
 
@@ -181,29 +222,43 @@ async def checkProofStep(step, problem, filecache):
     else:
         statuses = step.derivation.getDerivationStatuses()
         if len(statuses) > 1:
-            VerificationStatus(f"VerifiedBad: Step {step.name}'s derivation has multiple statuses: {statuses}")
+            VerificationStatus(f"VerifiedBad: Step '{step.name}''s "
+                               +f"derivation has multiple statuses: {statuses}")
         premises = step.getParents()
-        if isinstance(step,Clause):
+        if isinstance(step, Clause):
             concl = clauseToFormula(step)
         else:
             concl = step.formula
-        # print("Premises:\n", premises)
+        # print("Premises: ", [p.name for p in premises])
+        #for p in premises:
+        #    try:
+        #        print(p.name, p)
+        #    except AssertionError:
+        #        print(p.name, p.derivation.parents)
         # print("Conclusion:\n", concl)
         if "status(cth)" in statuses:
-            print(f"# Verifying cth step {step.name}")
-            new_prem = WFormula(premises[0].formula, "plain", premises[0].name)
-            premises = [new_prem]
-            concl = Formula("~", concl)
+            print(f"# Verifying cth step '{step.name}'")
+            # new_prem = WFormula(premises[0].formula, "plain", premises[0].name)
+            # premises = [new_prem]
+            # concl = Formula("~", concl)
+            # conclf = WFormula(concl, "conjecture", "prove_to_verify")
+            # premises.append(conclf)
+            lhs  = premises[0].formula
+            rhs = Formula("~", concl)
+            concl = Formula("<=>", lhs, rhs)
             conclf = WFormula(concl, "conjecture", "prove_to_verify")
-            premises.append(conclf)
-            res = await run_prover(step, premises)
+            res = await run_prover(step, [conclf])
         elif "status(thm)" in statuses:
-            print(f"# Verifying thm step {step.name}")
+            print(f"# Verifying thm step '{step.name}'")
             conclf = WFormula(concl, "conjecture", "prove_to_verify")
             premises.append(conclf)
             res = await run_prover(step, premises)
         elif "status(esa)" in statuses:
-            print("Need to verify esa step")
+            print(f"# Verifying esa/skolemize step '{step.name}'")
+            if not step.derivation.operator == "skolemize":
+                VerificationStatus(f"Unknown: Cannot handle {step.operator} "
+                                   + "with status(esa) in '{step.name}'")
+            checkSkolemizationStep(step, problem)
 
 
 async def checkProofSteps(problem):
@@ -248,7 +303,7 @@ if __name__ == '__main__':
         problem.resolveQuasiReferences()
         problem.checkStructure()
 
-        print(problem)
+        # print(problem)
 
         asyncio.run(checkProofSteps(problem))
 

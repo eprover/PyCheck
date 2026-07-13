@@ -37,6 +37,7 @@ Email: schulz@eprover.org
 """
 
 from lexer import Token,Lexer
+from terms import parseTerm, termIsVar, termArgs
 import unittest
 from checkutil import VerificationStatus
 
@@ -104,13 +105,23 @@ class Derivable(object):
 
     def getParents(self):
         """
-        Return a list of all ancestors of this node in the derivation
+        Return a list of all parents of this node in the derivation
         graph.
         """
         if self.derivation:
             return self.derivation.getParents()
         else:
             return []
+
+    def getAncestors(self):
+        """
+        Return a list of all ancestors of this node in the derivation
+        graph.
+        """
+        if self.derivation:
+            return self.derivation.getAncestors()
+        else:
+            return set()
 
     def incRefCount(self):
         """
@@ -142,8 +153,8 @@ class Derivable(object):
         Compute and set the number of virtual edges in all descendents
         of self. The root node has one "virtual" edge.
         """
-        if self.refCount == 0:
-            self.incRefCount()
+        self.incRefCount()
+        if self.refCount == 1:
             parents = self.getParents()
             for p in parents:
                 p.annotateDerivationGraph()
@@ -209,15 +220,19 @@ class Derivation(object):
     reference to an existing Derivable object ("reference"), or an
     inference with a list of premises.
     """
-    def __init__(self, operator, parents=None, status="status(thm)"):
+    def __init__(self, operator, parents=None, status="status(thm)", skolemdata=None):
         """
         Initialize  a derivation object with the operator and a list
         of parents (which can be Derivations or, in the case of
         "reference", Derivables).
         """
+        if operator in ["reference", "quasi_ref"]:
+            # print(f"Parents: {parents}")
+            assert(len(parents)==1)
         self.operator = operator
         self.parents  = parents
         self.status   = status
+        self.skolemdata = skolemdata
 
     def __repr__(self):
         """
@@ -228,6 +243,7 @@ class Derivation(object):
         elif self.operator.startswith("theory("):
             return self.operator
         elif self.operator == "reference":
+            # print("reference:", self.parents)
             assert(len(self.parents)==1)
             return self.parents[0].name
         elif self.operator == "quasi_ref":
@@ -267,13 +283,18 @@ class Derivation(object):
             return self.parents
         elif self.operator == "quasi_ref":
             return []
-            return []
         else:
-            res = []
+            res = list()
             for p in self.parents:
                 res.extend(p.getParents())
             return res
 
+    def getAncestors(self):
+        parents = self.getParents()
+        res = set(parents)
+        for p in parents:
+            res |= p.getAncestors()
+        return res
 
     def getRecDerivationStatuses(self):
         """
@@ -305,10 +326,13 @@ class Derivation(object):
     def resolveQuasiReferences(self, index):
         if self.operator == "quasi_ref":
             self.operator = "reference"
+            # print("QParents: ", self.parents)
+            assert(len(self.parents)==1)
             for p in self.parents:
                 if not p in index:
                     VerificationStatus(f"VerifiedBad: Identifier '{p}' cannot be resolved")
             parents = [index[p] for p in self.parents]
+            assert(len(parents)==1)
             self.parents = parents
         elif self.isInputDeriv():
             pass
@@ -346,6 +370,40 @@ class Derivation(object):
             return res
 
 
+def parseSkolemData(lexer):
+    lexer.AcceptTok(Token.OpenSquare)
+    lexer.AcceptLit("status")
+    lexer.AcceptTok(Token.OpenPar)
+    lexer.CheckLit("esa")
+    status = "status(%s)"%(lexer.LookLit(),)
+    lexer.AcceptTok(Token.IdentLower)
+    lexer.AcceptTok(Token.ClosePar)
+    lexer.AcceptTok(Token.Comma)
+    lexer.AcceptLit("new_symbols")
+    lexer.AcceptTok(Token.OpenPar)
+    lexer.AcceptLit("skolem")
+    lexer.AcceptTok(Token.Comma)
+    lexer.AcceptTok(Token.OpenSquare)
+    skolem = lexer.LookLit()
+    lexer.AcceptTok(Token.IdentLower)
+    lexer.AcceptTok(Token.CloseSquare)
+    lexer.AcceptTok(Token.ClosePar)
+    lexer.AcceptTok(Token.Comma)
+    lexer.AcceptLit("skolemize")
+    lexer.AcceptTok(Token.OpenPar)
+    lexer.CheckTok(Token.IdentUpper)
+    var = parseTerm(lexer)
+    lexer.AcceptTok(Token.Comma)
+    lexer.CheckLit(skolem)
+    skolemterm = parseTerm(lexer)
+    varlist = termArgs(skolemterm)
+    for t in varlist:
+        if not termIsVar(t):
+            raise ScannerError(f"All arguments of a Skolem term must be variables, {term2String(t)} is not")
+    lexer.AcceptTok(Token.ClosePar)
+    lexer.AcceptTok(Token.CloseSquare)
+    return status,skolem,var,skolemterm,varlist
+
 
 def parseRecDerivation(lexer):
     if lexer.TestLit("inference"):
@@ -354,16 +412,22 @@ def parseRecDerivation(lexer):
         operator = lexer.LookLit()
         lexer.AcceptTok(Token.IdentLower)
         lexer.AcceptTok(Token.Comma)
-        lexer.AcceptTok(Token.OpenSquare)
-        lexer.AcceptLit("status")
-        lexer.AcceptTok(Token.OpenPar)
-        status = "status(%s)"%(lexer.LookLit(),)
-        lexer.AcceptTok(Token.IdentLower)
-        lexer.AcceptTok(Token.ClosePar)
-        lexer.AcceptTok(Token.CloseSquare)
+        if operator == "skolemize":
+            tmp = parseSkolemData(lexer)
+            status = tmp[0]
+            skolemdata = tmp[1:]
+        else:
+            skolemdata = None
+            lexer.AcceptTok(Token.OpenSquare)
+            lexer.AcceptLit("status")
+            lexer.AcceptTok(Token.OpenPar)
+            status = "status(%s)"%(lexer.LookLit(),)
+            lexer.AcceptTok(Token.IdentLower)
+            lexer.AcceptTok(Token.ClosePar)
+            lexer.AcceptTok(Token.CloseSquare)
         lexer.AcceptTok(Token.Comma)
         lexer.AcceptTok(Token.OpenSquare)
-        parents = []
+        parents = list()
         if not lexer.TestTok(Token.CloseSquare):
             parent = parseRecDerivation(lexer)
             parents.append(parent)
@@ -373,10 +437,10 @@ def parseRecDerivation(lexer):
                 parents.append(parent)
         lexer.AcceptTok(Token.CloseSquare)
         lexer.AcceptTok(Token.ClosePar)
-        return Derivation(operator, parents, status)
-    elif lexer.TestTok(Token.IdentLower):
+        return Derivation(operator, parents, status, skolemdata)
+    elif lexer.TestTok([Token.IdentLower, Token.Integer]):
         name = lexer.LookLit()
-        lexer.AcceptTok(Token.IdentLower)
+        lexer.AcceptTok([Token.IdentLower,Token.Integer])
         return Derivation("quasi_ref", [name])
 
 def parseDerivation(lexer):

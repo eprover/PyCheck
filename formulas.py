@@ -375,15 +375,96 @@ class Formula(object):
             res.discard(self.child1)
         return res
 
+    def collectFreeVarsOrdered(self):
+        """
+        Return the set of all free variables in self.
+        """
+        if self.isLiteral():
+            res=self.child1.collectVarsOrdered()
+        elif self.isUnary():
+            res=self.child1.collectFreeVarsOrdered()
+        elif self.isBinary():
+            res=self.child1.collectFreeVars()
+            self.child2.collectFreeVars(res)
+        else:
+            # Quantor case. We first collect all free variables in
+            # the quantified formula, then remove the one bound by the
+            # quantifier.
+            assert self.isQuantified()
+            res = self.child2.collectFreeVars()
+            del(res, self.child1)
+        return res
+
     def universalClosure(self):
         """
         Return the universal closure of self.
         """
-        vars = self.collectFreeVars()
+        vars = self.collectFreeVarsOrdered()
         res = self
         for var in vars:
             res = Formula("!", var, res)
         return res
+
+    def findQuantifierScope(self, quantifier, variable):
+        """
+        Search the formula for the given quantifier and return the
+        quantifier/variable pairs in whose scope that quantifier is
+        - or None, if the quantifier is not found.
+        """
+        if self.op == quantifier and self.child1 == variable:
+            return set()
+        elif self.isLiteral():
+            return None
+        elif self.isQuantified():
+            return set([(self.op,
+                         self.child1)])|self.child2.findQuantifierScope(quantifier,
+                                                                        variable)
+        else:
+            res = self.child1.findQuantifierScope(quantifier, variable)
+            if res!=None:
+                return res
+            if self.isBinary():
+                return self.child2.findQuantifierScope(quantifier, variable)
+
+    def replaceVar(self, var, term):
+        """
+        Return formula with free occurances of variable var replaced
+        by term.
+        """
+        if self.isLiteral():
+            return Formula("", (self.child1.instantiate(substitutions.Substitution([(var, term)]))))
+        elif self.isQuantified():
+            if self.child1 == var:
+                return self
+            else:
+                return Formula(self.op, self.child1,
+                               self.child2.replaceVar(var,term))
+        else:
+            child1 = self.child1.replaceVar(var, term)
+            child2 = Nome
+            if self.isBinary:
+                child2 = self.child2.replaceVar(var, term)
+            return Formula(self.op, child1, child2)
+
+    def applySkolem(self, var, skolemterm):
+        """
+        Apply the Skolemization replacing ?[var]f(var) with
+        f(skolemterm) in this formula.
+        """
+        if self.op == "?" and self.child1 == var:
+            return self.child2.replaceVar(var, skolemterm)
+        elif self.isLiteral():
+            # This is never in the scope of ?[var]
+            return self
+        elif self.isQuantified():
+            return Formula(self.op, self.child1,
+                           self.child2.applySkolem(var, skolemterm))
+        else:
+            child1 = self.child1.applySkolem(var, skolemterm)
+            child2 = Nome
+            if self.isBinary:
+                child2 = self.child2.applySkolem(var, skolemterm)
+            return Formula(self.op, child1, child2)
 
 
 def parseQuantified(lexer, quantor):
@@ -547,14 +628,17 @@ def clauseToFormula(clause):
     """
     Convert a clause to an equivalent universally closed formula.
     """
+    # print("Clause: ", clause)
     if clause.isEmpty():
-        return Literal(["$false"])
+        res = Formula("", Literal(["$false"]))
     else:
-        res = clause.litlist[0]
-        for lit in clause.litlist[1:]:
-            res = Formula("|", res, lit)
-        res.universalClosure()
-        return res
+        res = Formula("", clause.literals[0])
+        for lit in clause.literals[1:]:
+            res = Formula("|", res, Formula("", lit))
+
+    res = res.universalClosure()
+    # print("Res: ", res)
+    return res
 
 
 # ------------------------------------------------------------------

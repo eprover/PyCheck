@@ -96,6 +96,7 @@ class FOFSpec(object):
         self.hasConj  = False
         self.deriv_index = {}
         self.ordered_proof = None
+        self.sig = Signature()
 
     def __repr__(self):
         """
@@ -131,6 +132,8 @@ class FOFSpec(object):
             self.hasConj = True
         self.clauses.append(clause)
         self.indexDerivable(clause)
+        if clause.derivation and clause.derivation.operator == "file":
+            clause.collectSig(self.sig)
 
     def addFormula(self,formula):
         """
@@ -141,6 +144,8 @@ class FOFSpec(object):
         self.isFof = True
         self.formulas.append(formula)
         self.indexDerivable(formula)
+        if formula.derivation and formula.derivation.operator == "file":
+            formula.collectSig(self.sig)
 
     def findEmpty(self):
         """
@@ -234,12 +239,13 @@ class FOFSpec(object):
         in self.ordered_proof.
         """
         deriv_root = self.findEmpty()
-        if not deriv_root:
+        if  deriv_root==None:
             VerificationStatus(f"VerifiedBad: No explicit witness of contradiction")
         if Verbose:
             print("% Proof has explicit witness for contradiction")
         res = deriv_root.orderedDerivation()
         count = 0
+        # print(res)
         for step in res:
             step.setNumber(count)
             count+=1
