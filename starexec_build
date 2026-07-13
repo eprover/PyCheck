@@ -7,4 +7,4 @@ make
 make install
 
 tar xzvf PyCheck.tgz
-cp PyCheck/*.py PyCheck/starexec_run_PyCheck ../bin
+cp PyCheck/*.py PyCheck/starexec_run_PyCheck bin
