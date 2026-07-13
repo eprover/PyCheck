@@ -38,6 +38,14 @@ This is the main programm. To run it, call it e.g. as
 pycheck COR001+1.prf
 ```
 
+If "eprover" is not in your search path, you can provide an explicit
+path to the binary via
+
+```
+pycheck -e path/to/eprover COR001+1.prf
+```
+
+
 The program has been designed in reply to the requirements of the
 ProoVer competition, which in particular means that it cannot parse
 the (older style) Skolemization steps output by E (which will be
@@ -48,4 +56,8 @@ Information for ProoVer
 =======================
 
 The system will be delivered as a StarExec source package, including E,
-with a build script that should put everything in the right place.
+with a build script that should put everything in the right place. The
+script to run the system is
+```
+starexec_run_PyCheck
+```
