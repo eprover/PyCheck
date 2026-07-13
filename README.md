@@ -14,8 +14,9 @@ Installation:
 =============
 
 Just clone the repository into a new directory, with e.g.
+```
 git clone https://github.com/eprover/PyCheck.git
-
+```
 No futher installation should be necessary. If you are on a UNIX-like
 OS (including Linux or macOS/OS-X), and "python3" is not in your
 standard search path (or not Python 3), you may need to edit the
