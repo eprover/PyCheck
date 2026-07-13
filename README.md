@@ -5,6 +5,11 @@ It is released as free software under the GNU GPL version 2, and
 without any warranty. See the file COPYING for details and the
 individual source headers for copyright information.
 
+This recycles code from PyRes (https://github.com/eprover/PyRes) and
+is currently not very clean - there is a lot of unnecessary inherited
+code, because this version was built to the ProoVer competition
+deadline.
+
 Installation:
 =============
 
@@ -29,20 +34,16 @@ pycheck.py:
 This is the main programm. To run it, call it e.g. as
 
 ```
-pycheck LUSK3.prf
+pycheck COR001+1.prf
 ```
 
+The program has been designed in reply to the requirements of the
+ProoVer competition, which in particular means that it cannot parse
+the (older style) Skolemization steps output by E (which will be
+updated soon, of course).
 
 
 ======== Information for ProoVer ==========
 
-
-======== Checks ======
-
-THM steps via ATP
-CTH steps via ATP
-References to input file via ATP
-New symbols are only used downstream
-Proof graph is a DAG
-Nodes are input formulas (or references to it)
-Skolemization directly
+The system will be delivered as a StarExec source package, including E,
+with a build script that should put everything in the right place.
