@@ -17,13 +17,13 @@ Just clone the repository into a new directory, with e.g.
 ```
 git clone https://github.com/eprover/PyCheck.git
 ```
-No futher installation should be necessary. If you are on a UNIX-like
+No further installation should be necessary. If you are on a UNIX-like
 OS (including Linux or macOS/OS-X), and "python3" is not in your
 standard search path (or not Python 3), you may need to edit the
 #!-line at the beginning of the main program (see below),
 or in all modules if you want to run the unit tests.
 
-You do need E (as "eprover") in your search path. See
+You do need E (as "eprover") in your search path (but see below). See
 
    https://www.eprover.org
 
