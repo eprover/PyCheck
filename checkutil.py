@@ -37,7 +37,7 @@ import unittest
 # from fofspec import FOFSpec
 
 def VerificationStatus(string):
-    print("% SZS status:", string)
+    print("% SZS status", string)
     sys.exit(1)
 
 

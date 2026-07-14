@@ -129,13 +129,13 @@ async def run_prover(step, formulas):
     mo = res_match_re.search(res_out)
     res = mo.groups()[0]
     if res == "ResourceOut":
-        VerificationStatus(f"Unknown: Verifying '{step.name}' hit resource limit")
+        VerificationStatus(f"Unknown : Verifying '{step.name}' hit resource limit")
     elif res in ["Satisfiable", "CounterSatisfiable"]:
-        VerificationStatus(f"VerifiedBad: '{step.name}' is unsound")
+        VerificationStatus(f"VerifiedBad : '{step.name}' is unsound")
     elif res in ["Theorem", "ContradictoryAxioms"]:
         print(f"% Verified step '{step.name}'")
     else:
-        VerificationStatus(f"Unknown: Unexpected resuls {res} for '{step.name}'")
+        VerificationStatus(f"Unknown : Unexpected resuls {res} for '{step.name}'")
 
 
 def checkConjectureStructConstraints(step, problem):
@@ -150,7 +150,7 @@ def checkConjectureStructConstraints(step, problem):
                 continue
             if f.type == "negated_conjecture" and f.derivation.status=="status(cth)":
                 continue
-            VerificationStatus(f"VerifiedBad: Conjecture '{step.name}' is"
+            VerificationStatus(f"VerifiedBad : Conjecture '{step.name}' is"
                                +f" used weirdly by {f.name}")
 
 
@@ -159,7 +159,7 @@ def checkInputStep(step, problem, filecache):
     filename, name = step.derivation.parents
     premise = filecache.getDerivable(filename, name)
     if premise == None:
-        VerificationStatus(f"VerifiedBad: Step '{step.name}' is not in the input file")
+        VerificationStatus(f"VerifiedBad : Step '{step.name}' is not in the input file")
     # print(f"Input: {premise}")
     if isinstance(step, Clause):
         stepf = clauseToFormula(step)
@@ -173,7 +173,7 @@ def checkInputStep(step, problem, filecache):
     premf = formulaVarNormalize(premf)
     # print(f"{stepf} == {premf}")
     if not stepf.isEqual(premf):
-        VerificationStatus(f"VerifiedBad: Step '{step.name}' is not alpha-equal to {premise.name}")
+        VerificationStatus(f"VerifiedBad : Step '{step.name}' is not alpha-equal to {premise.name}")
     print(f"% Verified step '{step.name}'")
 
 
@@ -183,12 +183,12 @@ def checkSkolemizationStep(step, problem):
     # check that Skolem symbol is new
     ancestors = step.getAncestors()
     if problem.sig.isFun(skolem):
-        VerificationStatus(f"VerifiedBad: Skolem symbol '{skolem}' is"
+        VerificationStatus(f"VerifiedBad : Skolem symbol '{skolem}' is"
                            +f" not new in '{step.name}'")
     problem.sig.addFun(skolem, len(termArgs(skolemterm)))
     parents = step.getParents()
     if len(parents)!=1:
-        VerificationStatus(f"VerifiedBad: Skolemization step "
+        VerificationStatus(f"VerifiedBad : Skolemization step "
                            +f"'{step.name}' has more than one parent")
     parent = parents[0]
     pform = parent.formula
@@ -196,19 +196,19 @@ def checkSkolemizationStep(step, problem):
     newvars = []
     for (q,v) in scope:
         if q!="!":
-            VerificationStatus(f"VerifiedBad: Skolemization step "
+            VerificationStatus(f"VerifiedBad : Skolemization step "
                                +f"'{step.name}' does not Skolemize"
                                +"outermost existential variable")
         newvars.append(v)
     if set(varlist)!=set(newvars):
-        VerificationStatus(f"VerifiedBad: Skolemization step "
+        VerificationStatus(f"VerifiedBad : Skolemization step "
                            +f"'{step.name}' does not use exactly the "
                            "variables in scope")
 
     skform = pform.applySkolem(var, skolemterm)
     # print("Before:", pform, "Skolemized:", skform, "Step: ", step.formula)
     if not step.formula.isEqual(skform):
-        VerificationStatus(f"VerifiedBad: Skolemization of '{step.name}'"
+        VerificationStatus(f"VerifiedBad : Skolemization of '{step.name}'"
                            +f" does not correspond to '{skform}'")
     print(f"% Verified Skolemization step '{step.name}'")
 
@@ -223,7 +223,7 @@ async def checkProofStep(step, problem, filecache):
                          "negated_conjecture",
                          "plain",
                          "definition"]:
-        VerificationStatus(f"VerifiedBad: Step '{step.name}' has unknown role {step.type}")
+        VerificationStatus(f"VerifiedBad : Step '{step.name}' has unknown role {step.type}")
     if step.type == "conjecture":
         checkConjectureStructConstraints(step, problem)
 
@@ -232,7 +232,7 @@ async def checkProofStep(step, problem, filecache):
     else:
         statuses = step.derivation.getDerivationStatuses()
         if len(statuses) > 1:
-            VerificationStatus(f"VerifiedBad: Step '{step.name}''s "
+            VerificationStatus(f"VerifiedBad : Step '{step.name}''s "
                                +f"derivation has multiple statuses: {statuses}")
         premises = step.getParents()
         if isinstance(step, Clause):
@@ -266,7 +266,7 @@ async def checkProofStep(step, problem, filecache):
         elif "status(esa)" in statuses:
             print(f"# Verifying esa/skolemize step '{step.name}'")
             if not step.derivation.operator == "skolemize":
-                VerificationStatus(f"Unknown: Cannot handle {step.operator} "
+                VerificationStatus(f"Unknown : Cannot handle {step.operator} "
                                    + "with status(esa) in '{step.name}'")
             checkSkolemizationStep(step, problem)
 
@@ -317,4 +317,4 @@ if __name__ == '__main__':
 
         asyncio.run(checkProofSteps(problem))
 
-        VerificationStatus(f"VerifiedGood: No problems found with '{file}'")
+        VerificationStatus(f"VerifiedGood : No problems found with '{file}'")
