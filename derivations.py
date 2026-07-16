@@ -404,6 +404,112 @@ def parseSkolemData(lexer):
     lexer.AcceptTok(Token.CloseSquare)
     return status,skolem,var,skolemterm,varlist
 
+def parsePrologishTermList(lexer):
+    """
+    Parse (and ignore) something that seems to be a (non-empty)
+    Prolog-term list.
+    """
+    parsePrologishTerm(lexer)
+    while lexer.TestTok(Token.Comma):
+        lexer.AcceptTok(Token,Comma)
+        parsePrologishTerm(lexer)
+
+
+def parsePrologishTerm(lexer):
+    """
+    Parse (and ignore) something that seems to be a Prolog-term.
+    """
+    if lexer.TestTok(Token.OpenSquare):
+        lexer.AcceptTok(Token.OpenSquare)
+        parsePrologishTermList(lexer)
+        lexer.AcceptTok(Token.CloseSquare)
+    else:
+        lexer.AcceptTok([Token.IdentUpper, Token.IdentLower])
+        if lexer.TestTok(Token.OpenPar):
+            lexer.AcceptTok(Token.OpenPar)
+            if not lexer.TestTok(Token.ClosePar):
+                parsePrologishTermList(lexer)
+            lexer.AcceptTok(Token.ClosePar)
+
+
+def parseInfDataItem(lexer):
+    """
+    Parse one annotation item of an inference step. This can be
+    status(<status>), new_symbols(<bla>, [<symbols>],
+    skolemize(<Var>,<term>), or a random nested something.
+    We return a tuple with the recognized components != None.
+    """
+    status = None
+    skolem = None
+    var    = None
+    skolemterm = None
+    varlist = None
+
+    if lexer.TestLit("status"):
+        lexer.AcceptLit("status")
+        lexer.AcceptTok(Token.OpenPar)
+        status = "status(%s)"%(lexer.LookLit(),)
+        lexer.AcceptTok(Token.IdentLower)
+        lexer.AcceptTok(Token.ClosePar)
+    elif lexer.TestLit("new_symbols"):
+        lexer.AcceptLit("new_symbols")
+        lexer.AcceptTok(Token.OpenPar)
+        lexer.AcceptTok(Token.IdentLower)
+        lexer.AcceptTok(Token.Comma)
+        lexer.AcceptTok(Token.OpenSquare)
+        skolem = lexer.LookLit()
+        lexer.AcceptTok(Token.IdentLower)
+        lexer.AcceptTok(Token.CloseSquare)
+        lexer.AcceptTok(Token.ClosePar)
+    elif lexer.TestLit("skolemize"):
+        lexer.AcceptLit("skolemize")
+        lexer.AcceptTok(Token.OpenPar)
+        lexer.CheckTok(Token.IdentUpper)
+        var = parseTerm(lexer)
+        lexer.AcceptTok(Token.Comma)
+        # lexer.CheckLit(skolem)
+        skolemterm = parseTerm(lexer)
+        varlist = termArgs(skolemterm)
+        for t in varlist:
+            if not termIsVar(t):
+                raise ScannerError(f"All arguments of a Skolem term must be variables, {term2String(t)} is not")
+            lexer.AcceptTok(Token.ClosePar)
+    else:
+        parsePrologishTerm()
+
+
+    return status,skolem,var,skolemterm,varlist
+
+def parseInfData(lexer):
+    status = None
+    skolem = None
+    var    = None
+    skolemterm = None
+    varlist = None
+    first = True
+
+    lexer.AcceptTok(Token.OpenSquare)
+    while not lexer.TestTok(Token.CloseSquare):
+        if first:
+            first = False
+        else:
+            lexer.AcceptTok(Token.Comma)
+
+        lstatus,lskolem,lvar,lskolemterm,lvarlist = parseInfDataItem(lexer)
+        if lstatus != None:
+            status = lstatus
+        if lskolem != None:
+            skolem = lskolem
+        if lvar != None:
+            var = lvar
+        if lskolemterm != None:
+            skolemterm = lskolemterm
+        if lvarlist != None:
+            varlist = lvarlist
+    lexer.AcceptTok(Token.CloseSquare)
+
+    return status,skolem,var,skolemterm,varlist
+
 
 def parseRecDerivation(lexer):
     if lexer.TestLit("inference"):
@@ -412,19 +518,20 @@ def parseRecDerivation(lexer):
         operator = lexer.LookLit()
         lexer.AcceptTok(Token.IdentLower)
         lexer.AcceptTok(Token.Comma)
+
+        tmp = parseInfData(lexer)
+        status = tmp[0]
+        skolemdata = tmp[1:]
+
         if operator == "skolemize":
-            tmp = parseSkolemData(lexer)
-            status = tmp[0]
-            skolemdata = tmp[1:]
-        else:
-            skolemdata = None
-            lexer.AcceptTok(Token.OpenSquare)
-            lexer.AcceptLit("status")
-            lexer.AcceptTok(Token.OpenPar)
-            status = "status(%s)"%(lexer.LookLit(),)
-            lexer.AcceptTok(Token.IdentLower)
-            lexer.AcceptTok(Token.ClosePar)
-            lexer.AcceptTok(Token.CloseSquare)
+            if None in skolemdata:
+                raise IncompleteDataError("Skolem informatiom incomplete")
+            skolem,var,skolemterm,varlist = skolemdata
+            if skolem!=skolemterm[0]:
+                raise InconsistentDataError(f"Skolem symbol {skolem} not heading skolem term {term2str(skolemterm)}")
+
+        if not status:
+            raise IncompleteDataError("Inference record has no status")
         lexer.AcceptTok(Token.Comma)
         lexer.AcceptTok(Token.OpenSquare)
         parents = list()

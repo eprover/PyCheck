@@ -605,6 +605,8 @@ def parseWFormula(lexer):
     else:
         res.setInputDeriv(lexer.getName(), name)
 
+    print(f"Parsed {res}")
+
     return res
 
 def negateConjecture(wform):

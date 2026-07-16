@@ -80,7 +80,19 @@ class UnexpectedIdentError(ScannerError):
         self.name  = "Unexpected identifier"
         self.value = token
 
+class ParseError(Exception):
+    pass
 
+class IncompleteDataError(ParseError):
+    def __init__(self, msg):
+        self.name  = "Incomplete data"
+        self.value = msg
+
+
+class InconsistentDataError(ParseError):
+    def __init__(self, msg):
+        self.name  = "Inconsistent data"
+        self.value = msg
 
 
 nl_re  = re.compile("\n")
