@@ -37,7 +37,7 @@ Email: schulz@eprover.org
 """
 
 from lexer import Token,Lexer
-from terms import parseTerm, termIsVar, termArgs
+from terms import parseTerm, termIsVar, termArgs, term2String
 import unittest
 from checkutil import VerificationStatus
 
@@ -249,6 +249,11 @@ class Derivation(object):
         elif self.operator == "quasi_ref":
             assert(len(self.parents)==1)
             return self.parents[0]+"q"
+        elif self.operator == "skolemize":
+            return f"inference({self.operator},[{self.status},"+\
+                f"new_symbols(skolem,[{self.skolemdata[0]}])"+\
+                f",skolemize({self.skolemdata[1]},"+\
+                f"{term2String(self.skolemdata[2])})],{self.parents})"
         else:
             return "inference(%s,[%s],%s)"%\
                    (self.operator, self.status, repr(self.parents))
@@ -473,7 +478,7 @@ def parseInfDataItem(lexer):
         for t in varlist:
             if not termIsVar(t):
                 raise ScannerError(f"All arguments of a Skolem term must be variables, {term2String(t)} is not")
-            lexer.AcceptTok(Token.ClosePar)
+        lexer.AcceptTok(Token.ClosePar)
     else:
         parsePrologishTerm()
 
@@ -528,7 +533,7 @@ def parseRecDerivation(lexer):
                 raise IncompleteDataError("Skolem informatiom incomplete")
             skolem,var,skolemterm,varlist = skolemdata
             if skolem!=skolemterm[0]:
-                raise InconsistentDataError(f"Skolem symbol {skolem} not heading skolem term {term2str(skolemterm)}")
+                raise InconsistentDataError(f"Skolem symbol {skolem} not heading skolem term {term2String(skolemterm)}")
 
         if not status:
             raise IncompleteDataError("Inference record has no status")
