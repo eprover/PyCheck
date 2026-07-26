@@ -58,14 +58,11 @@ import asyncio
 import re
 from resource import RLIMIT_STACK, setrlimit, getrlimit
 import getopt
-from version import *
-from lexer import Token,Lexer
-from signature import Signature
+from version import version, Verbose
 from derivations import *
 from clauses import Clause
 from formulas import Formula, WFormula, clauseToFormula
 from formulacnf import formulaVarNormalize
-from clausesets import ClauseSet
 from fofspec import FOFSpec
 from checkutil import VerificationStatus
 
@@ -191,6 +188,10 @@ def checkInputStep(step, filecache):
 
 
 def checkSkolemizationStep(step, problem):
+    """
+    Check a skolemization step by trying to reconstruct it, checking
+    for variable skope and symbol freshness.
+    """
     print(f"% Verifying Skolemization step '{step.name}'")
     skolem,var,skolemterm,varlist = step.derivation.skolemdata
     if problem.sig.isFun(skolem):
@@ -199,7 +200,7 @@ def checkSkolemizationStep(step, problem):
     problem.sig.addFun(skolem, len(termArgs(skolemterm)))
     parents = step.getParents()
     if len(parents)!=1:
-        VerificationStatus(f"VerifiedBad : Skolemization step "
+        VerificationStatus("VerifiedBad : Skolemization step "
                            +f"'{step.name}' has more than one parent")
     parent = parents[0]
     pform = parent.formula
@@ -207,12 +208,12 @@ def checkSkolemizationStep(step, problem):
     newvars = []
     for (q,v) in scope:
         if q!="!":
-            VerificationStatus(f"VerifiedBad : Skolemization step "
+            VerificationStatus("VerifiedBad : Skolemization step "
                                +f"'{step.name}' does not Skolemize"
                                +"outermost existential variable")
         newvars.append(v)
     if set(varlist)!=set(newvars):
-        VerificationStatus(f"VerifiedBad : Skolemization step "
+        VerificationStatus("VerifiedBad : Skolemization step "
                            +f"'{step.name}' does not use exactly the "
                            "variables in scope")
 
@@ -240,6 +241,9 @@ async def checkProofStep(step, problem, filecache):
         VerificationStatus(f"VerifiedBad : Step '{step.name}' has unknown role {step.type}")
     if step.type == "conjecture":
         checkConjectureStructConstraints(step, problem)
+
+    if not step.derivation:
+        VerificationStatus(f"VerifiedBad : Step '{step.name}' has no justification")
 
     if step.derivation.operator == "file":
         checkInputStep(step, filecache)
@@ -271,12 +275,12 @@ async def checkProofStep(step, problem, filecache):
             rhs = Formula("~", concl)
             concl = Formula("<=>", lhs, rhs)
             conclf = WFormula(concl, "conjecture", "prove_to_verify")
-            res = await run_prover(step, [conclf])
+            await run_prover(step, [conclf])
         elif "status(thm)" in statuses:
             print(f"# Verifying thm step '{step.name}'")
             conclf = WFormula(concl, "conjecture", "prove_to_verify")
             premises.append(conclf)
-            res = await run_prover(step, premises)
+            await run_prover(step, premises)
         elif "status(esa)" in statuses:
             print(f"# Verifying esa/skolemize step '{step.name}'")
             if not step.derivation.operator == "skolemize":
@@ -303,7 +307,7 @@ if __name__ == '__main__':
     try:
         soft, hard = getrlimit(RLIMIT_STACK)
         soft = 10*soft
-        if hard > 0 and soft > hard:
+        if  soft > hard > 0:
             soft = hard
         setrlimit(RLIMIT_STACK, (soft, hard))
     except ValueError:
@@ -325,13 +329,13 @@ if __name__ == '__main__':
 
     Derivable.printDerivation = True
     for file in args:
-        problem = FOFSpec()
-        problem.parse(file)
-        problem.resolveQuasiReferences()
-        problem.checkStructure()
+        proof = FOFSpec()
+        proof.parse(file)
+        proof.resolveQuasiReferences()
+        proof.checkStructure()
 
-        # print(problem)
+        # print(proof)
 
-        asyncio.run(checkProofSteps(problem))
+        asyncio.run(checkProofSteps(proof))
 
         VerificationStatus(f"VerifiedGood : No problems found with '{file}'")
