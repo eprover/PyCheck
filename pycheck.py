@@ -69,26 +69,24 @@ from clausesets import ClauseSet
 from fofspec import FOFSpec
 from checkutil import VerificationStatus
 
-eprover = "eprover"
+EPROVER = "eprover"
 
-def processOptions(opts):
+def processOptions(options):
     """
     Process the options given
     """
-    global Verbose, eprover
-    for opt, optarg in opts:
-        if opt == "-h" or opt == "--help":
+    global Verbose, EPROVER
+    for opt, optarg in options:
+        if opt in ("-h", "--help"):
             print("pycheck.py "+version)
             print(__doc__)
             sys.exit()
-        elif opt == "-v" or opt == "--Verbose":
+        elif opt in ("-v", "--Verbose"):
             Verbose = True
-        elif opt == "-e" or opt == "--eprover":
-            eprover = optarg
+        elif opt in ("-e", "--eprover"):
+            EPROVER = optarg
 
-res = []
 res_match_re = re.compile("% SZS status (.*)")
-
 
 class FileCache:
     """
@@ -100,6 +98,9 @@ class FileCache:
         self.refdir = refdir
 
     def requestSpec(self, filename):
+        """
+        Return the FOFSpec corresponding to a given file name."
+        """
         if not filename in self.cache:
             spec = FOFSpec()
             spec.parse(filename, self.refdir)
@@ -107,12 +108,21 @@ class FileCache:
         return self.cache[filename]
 
     def getDerivable(self, filename, name):
+        """
+        Find and return a clause/formula with the given name in the
+        spec corresponding to a given file name (or None, if that does
+        not exist).
+        """
         spec = self.requestSpec(filename)
         return spec.getDerivable(name)
 
 async def run_prover(step, formulas):
+    """
+    Run E (i.e. EPROVER) and translated the result into a verification
+    error (or not).
+    """
     job = await asyncio.create_subprocess_shell(
-        eprover+" --auto-schedule=8 -s --cpu-limit=5 -",
+        EPROVER+" --auto-schedule=8 -s --cpu-limit=5 -",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -154,11 +164,14 @@ def checkConjectureStructConstraints(step, problem):
                                +f" used weirdly by {f.name}")
 
 
-def checkInputStep(step, problem, filecache):
+def checkInputStep(step, filecache):
+    """
+    Check a step with justification "file(...)".
+    """
     print(f"% Verifying input step '{step.name}'")
     filename, name = step.derivation.parents
     premise = filecache.getDerivable(filename, name)
-    if premise == None:
+    if premise is None:
         VerificationStatus(f"VerifiedBad : Step '{step.name}' is not in the input file")
     # print(f"Input: {premise}")
     if isinstance(step, Clause):
@@ -180,8 +193,6 @@ def checkInputStep(step, problem, filecache):
 def checkSkolemizationStep(step, problem):
     print(f"% Verifying Skolemization step '{step.name}'")
     skolem,var,skolemterm,varlist = step.derivation.skolemdata
-    # check that Skolem symbol is new
-    ancestors = step.getAncestors()
     if problem.sig.isFun(skolem):
         VerificationStatus(f"VerifiedBad : Skolem symbol '{skolem}' is"
                            +f" not new in '{step.name}'")
@@ -216,6 +227,9 @@ def checkSkolemizationStep(step, problem):
 
 
 async def checkProofStep(step, problem, filecache):
+    """
+    Check step (
+    """
     print(f"% Performing local checks on '{step.name}'")
 
     if step.type not in ["axiom",
@@ -228,7 +242,7 @@ async def checkProofStep(step, problem, filecache):
         checkConjectureStructConstraints(step, problem)
 
     if step.derivation.operator == "file":
-        checkInputStep(step, problem, filecache)
+        checkInputStep(step, filecache)
     else:
         statuses = step.derivation.getDerivationStatuses()
         if len(statuses) > 1:
@@ -272,6 +286,9 @@ async def checkProofStep(step, problem, filecache):
 
 
 async def checkProofSteps(problem):
+    """
+    Go through the (necessary) proof steps and check them.
+    """
     filecache = FileCache(problem.refdir)
     for step in problem.ordered_proof:
         await checkProofStep(step, problem, filecache)

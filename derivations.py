@@ -248,7 +248,7 @@ class Derivation(object):
             return self.parents[0].name
         elif self.operator == "quasi_ref":
             assert(len(self.parents)==1)
-            return self.parents[0]+"q"
+            return self.parents[0]
         elif self.operator == "skolemize":
             return f"inference({self.operator},[{self.status},"+\
                 f"new_symbols(skolem,[{self.skolemdata[0]}])"+\

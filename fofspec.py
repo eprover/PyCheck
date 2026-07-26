@@ -243,7 +243,15 @@ class FOFSpec(object):
             VerificationStatus(f"VerifiedBad: No explicit witness of contradiction")
         if Verbose:
             print("% Proof has explicit witness for contradiction")
+
+        #res = deriv_root.annotateDerivationGraph()
+        #print("% Relevant steps: ",len(self.filterDerivedByRefCount()))
+        #for d in self.deriv_index.values():
+        #    d.refCount =0
+
         res = deriv_root.orderedDerivation()
+        #print("% Extracted: ",len(res))
+
         count = 0
         # print(res)
         for step in res:
@@ -256,7 +264,9 @@ class FOFSpec(object):
         self.ordered_proof = res
         return res
 
-
+    def filterDerivedByRefCount(self):
+        res = [d for d in self.deriv_index.values() if d.refCount!=0]
+        return res
 
     def computeEqLen(self):
         for c in self.clauses:

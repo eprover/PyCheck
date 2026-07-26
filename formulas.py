@@ -441,7 +441,7 @@ class Formula(object):
                                self.child2.replaceVar(var,term))
         else:
             child1 = self.child1.replaceVar(var, term)
-            child2 = Nome
+            child2 = None
             if self.isBinary:
                 child2 = self.child2.replaceVar(var, term)
             return Formula(self.op, child1, child2)
@@ -461,7 +461,7 @@ class Formula(object):
                            self.child2.applySkolem(var, skolemterm))
         else:
             child1 = self.child1.applySkolem(var, skolemterm)
-            child2 = Nome
+            child2 = None
             if self.isBinary:
                 child2 = self.child2.applySkolem(var, skolemterm)
             return Formula(self.op, child1, child2)
