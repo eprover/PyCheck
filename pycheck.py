@@ -62,7 +62,7 @@ from version import version, Verbose
 from derivations import *
 from clauses import Clause
 from formulas import Formula, WFormula, clauseToFormula
-from formulacnf import formulaVarNormalize
+from formulacnf import formulaVarNormalize, formulasAreAlphaEquiv
 from fofspec import FOFSpec
 from checkutil import VerificationStatus
 
@@ -179,10 +179,10 @@ def checkInputStep(step, filecache):
         premf = clauseToFormula(premise)
     else:
         premf = premise.formula
-    stepf = formulaVarNormalize(stepf)
-    premf = formulaVarNormalize(premf)
+    #stepf = formulaVarNormalize(stepf)
+    #premf = formulaVarNormalize(premf)
     # print(f"{stepf} == {premf}")
-    if not stepf.isEqual(premf):
+    if not formulasAreAlphaEquiv(stepf, premf):
         VerificationStatus(f"VerifiedBad : Step '{step.name}' is not alpha-equal to {premise.name}")
     print(f"% Verified step '{step.name}'")
 
@@ -204,7 +204,16 @@ def checkSkolemizationStep(step, problem):
                            +f"'{step.name}' has more than one parent")
     parent = parents[0]
     pform = parent.formula
+    if not pform.quantifiedVarsAreUnique():
+        VerificationStatus("VerifiedBad : Skolemization step "
+                           +f"'{step.name}' source '{parent.name}' "
+                           +"is not variable-normalized")
+
     scope = pform.findQuantifierScope("?", var)
+    if scope is None:
+        VerificationStatus("VerifiedBad : Skolemization step "
+                           +f"'{step.name}' source '{parent.name}' "
+                           +f"does not contain ?[{var}]")
     newvars = []
     for (q,v) in scope:
         if q!="!":
@@ -218,8 +227,8 @@ def checkSkolemizationStep(step, problem):
                            "variables in scope")
 
     skform = pform.applySkolem(var, skolemterm)
-    # print("Before:", pform, "Skolemized:", skform, "Step: ", step.formula)
-    if not step.formula.isEqual(skform):
+    print("Before:", pform, "Skolemized:", skform, "Step: ", step.formula)
+    if not formulasAreAlphaEquiv(step.formula,skform):
         VerificationStatus(f"VerifiedBad : Skolemization of '{step.name}'"
                            +f" does not correspond to '{skform}'")
     print(f"% Verified Skolemization step '{step.name}'")

@@ -556,6 +556,15 @@ def formulaVarNormalize(f, subst = None):
     return f
 
 
+def formulasAreAlphaEquiv(form1, form2):
+    """
+    Check if two formulas are alpha-equivalent
+    (i.e. variable-normalize to the same form).
+    """
+    form1 = formulaVarNormalize(form1)
+    form2 = formulaVarNormalize(form2)
+    return form1.isEqual(form2)
+
 
 def formulaRekSkolemize(f, variables, subst):
     """

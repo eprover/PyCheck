@@ -405,6 +405,27 @@ class Formula(object):
             res = Formula("!", var, res)
         return res
 
+    def quantifiedVarsAreUnique(self, vars = None):
+        """
+        Check if any variable is bound by more than one
+        quantifier. Return false if so, true otherwise.
+        """
+        if vars is None:
+            vars = set()
+        if self.isQuantified():
+            if self.child1 in vars:
+                return False
+            vars.add(self.child1)
+            return self.child2.quantifiedVarsAreUnique(vars)
+        elif self.isLiteral():
+            return True
+        else:
+            if not self.child1.quantifiedVarsAreUnique(vars):
+                return False
+            if self.isBinary():
+                return self.child2.quantifiedVarsAreUnique(vars)
+            return True
+
     def findQuantifierScope(self, quantifier, variable):
         """
         Search the formula for the given quantifier and return the
@@ -416,9 +437,10 @@ class Formula(object):
         elif self.isLiteral():
             return None
         elif self.isQuantified():
-            return set([(self.op,
-                         self.child1)])|self.child2.findQuantifierScope(quantifier,
-                                                                        variable)
+            tmp = self.child2.findQuantifierScope(quantifier, variable)
+            if tmp is None:
+                return None
+            return set([(self.op, self.child1)])|tmp
         else:
             res = self.child1.findQuantifierScope(quantifier, variable)
             if res!=None:
